@@ -494,7 +494,7 @@ if rawget(global, "jit") then
   end
 else 
   local dump = string.dump
-  if dump and sbyte(dump(System.emptyFn, 7)) == 0x00 then
+  if dump and sbyte(dump(System.emptyFn), 7) == 0x00 then
     isLittleEndian = false
   end
 end
@@ -518,7 +518,7 @@ local spack, sunpack, getBytesFromInt64, toInt64
 if System.luaVersion < 5.3 then
   local struct = rawget(global, "struct")
   if struct then
-    spack, sunpack = struct.pack, struct.upack
+    spack, sunpack = struct.pack, struct.unpack
   end
   if not spack then
     spack = function ()

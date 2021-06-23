@@ -17,10 +17,7 @@ limitations under the License.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.Contracts;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace CSharpLua {
   class Program {
@@ -118,7 +115,7 @@ Options
     private static bool IsArgumentKey(string key) {
       if (arguments_ == null) {
         arguments_ = new HashSet<string>();
-        string[] lines = kHelpCmdString.Split(new string[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries);
+        string[] lines = kHelpCmdString.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries);
         foreach (string line in lines) {
           if (line.StartsWith('-')) {
             char[] chars = line.TakeWhile(i => !char.IsWhiteSpace(i)).ToArray();

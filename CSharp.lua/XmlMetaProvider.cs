@@ -18,9 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Xml.Serialization;
 using Microsoft.CodeAnalysis;
 
@@ -158,7 +156,7 @@ namespace CSharpLua {
         [XmlAttribute]
         public string Name;
         [XmlElement("property")]
-        public PropertyModel[] Propertys;
+        public PropertyModel[] Properties;
         [XmlElement("field")]
         public FieldModel[] Fields;
         [XmlElement("method")]
@@ -194,7 +192,7 @@ namespace CSharpLua {
     }
 
     private sealed class MethodMetaInfo {
-      private readonly List<XmlMetaModel.MethodModel> models_ = new List<XmlMetaModel.MethodModel>();
+      private readonly List<XmlMetaModel.MethodModel> models_ = new();
       private bool isSingleModel_;
 
       public void Add(XmlMetaModel.MethodModel model) {
@@ -227,7 +225,7 @@ namespace CSharpLua {
           sb.Append('.');
         }
         else if (!namespaceSymbol.IsGlobalNamespace) {
-          sb.Append(namespaceSymbol.ToString());
+          sb.Append(namespaceSymbol);
           sb.Append('.');
         }
         sb.Append(symbol.Name);
@@ -243,10 +241,10 @@ namespace CSharpLua {
           var typeSymbol = (IArrayTypeSymbol)symbol;
           string elementTypeName = GetTypeString(typeSymbol.ElementType);
           return elementTypeName + "[]" == typeString;
-        } else {
-          string name = GetTypeString(symbol);
-          return name == typeString;
         }
+
+        string name = GetTypeString(symbol);
+        return name == typeString;
       }
 
       private static bool IsArgMatch(ITypeSymbol symbol, XmlMetaModel.ArgumentModel parameterModel) {
@@ -315,12 +313,9 @@ namespace CSharpLua {
       }
 
       private XmlMetaModel.MethodModel GetMethodModel(IMethodSymbol symbol, bool isCheckBaned) {
-        XmlMetaModel.MethodModel methodModel;
-        if (isSingleModel_) {
-          methodModel = models_.First();
-        } else {
-          methodModel = models_.Find(i => IsMethodMatch(i, symbol));
-        }
+        var methodModel = isSingleModel_
+          ? models_.First()
+          : models_.Find(i => IsMethodMatch(i, symbol));
         if (methodModel != null && isCheckBaned) {
           methodModel.CheckBaned(symbol);
         }
@@ -334,9 +329,9 @@ namespace CSharpLua {
 
     private sealed class TypeMetaInfo {
       private readonly XmlMetaModel.ClassModel model_;
-      private readonly Dictionary<string, XmlMetaModel.FieldModel> fields_ = new Dictionary<string, XmlMetaModel.FieldModel>();
-      private readonly Dictionary<string, XmlMetaModel.PropertyModel> propertys_ = new Dictionary<string, XmlMetaModel.PropertyModel>();
-      private readonly Dictionary<string, MethodMetaInfo> methods_ = new Dictionary<string, MethodMetaInfo>();
+      private readonly Dictionary<string, XmlMetaModel.FieldModel> fields_ = new();
+      private readonly Dictionary<string, XmlMetaModel.PropertyModel> properties_ = new();
+      private readonly Dictionary<string, MethodMetaInfo> methods_ = new();
 
       public TypeMetaInfo(XmlMetaModel.ClassModel model) {
         model_ = model;
@@ -367,8 +362,8 @@ namespace CSharpLua {
       }
 
       private void Property() {
-        if (model_.Propertys != null) {
-          foreach (var propertyModel in model_.Propertys) {
+        if (model_.Properties != null) {
+          foreach (var propertyModel in model_.Properties) {
             if (string.IsNullOrEmpty(propertyModel.name)) {
               throw new ArgumentException($"type [{model_.name}] has a property name is empty");
             }
@@ -376,7 +371,7 @@ namespace CSharpLua {
             if (fields_.ContainsKey(propertyModel.name)) {
               throw new ArgumentException($"type [{model_.name}]'s property [{propertyModel.name}] is already exists");
             }
-            propertys_.Add(propertyModel.name, propertyModel);
+            properties_.Add(propertyModel.name, propertyModel);
           }
         }
       }
@@ -403,7 +398,7 @@ namespace CSharpLua {
       }
 
       public XmlMetaModel.PropertyModel GetPropertyModel(string name) {
-        return propertys_.GetOrDefault(name);
+        return properties_.GetOrDefault(name);
       }
 
       public MethodMetaInfo GetMethodMetaInfo(string name) {
@@ -411,27 +406,23 @@ namespace CSharpLua {
       }
     }
 
-    private readonly Dictionary<string, XmlMetaModel.NamespaceModel> namespaceNameMaps_ = new Dictionary<string, XmlMetaModel.NamespaceModel>();
-    private readonly Dictionary<string, TypeMetaInfo> typeMetas_ = new Dictionary<string, TypeMetaInfo>();
+    private readonly Dictionary<string, XmlMetaModel.NamespaceModel> namespaceNameMaps_ = new();
+    private readonly Dictionary<string, TypeMetaInfo> typeMetas_ = new();
 
     public XmlMetaProvider(IEnumerable<Stream> streams) {
       foreach (Stream stream in streams) {
-        XmlSerializer xmlSeliz = new XmlSerializer(typeof(XmlMetaModel));
-        try {
-          XmlMetaModel model = (XmlMetaModel)xmlSeliz.Deserialize(stream);
-          var assembly = model.Assembly;
-          if (assembly != null) {
-            if (assembly.Namespaces != null) {
-              foreach (var namespaceModel in assembly.Namespaces) {
-                LoadNamespace(namespaceModel);
-              }
-            }
-            if (assembly.Classes != null) {
-              LoadType(string.Empty, assembly.Classes);
+        var serializer = new XmlSerializer(typeof(XmlMetaModel));
+        XmlMetaModel model = (XmlMetaModel)serializer.Deserialize(stream);
+        var assembly = model.Assembly;
+        if (assembly != null) {
+          if (assembly.Namespaces != null) {
+            foreach (var namespaceModel in assembly.Namespaces) {
+              LoadNamespace(namespaceModel);
             }
           }
-        } catch (Exception e) {
-          throw new Exception($"load xml file wrong {0}", e);
+          if (assembly.Classes != null) {
+            LoadType(string.Empty, assembly.Classes);
+          }
         }
       }
     }
@@ -439,7 +430,7 @@ namespace CSharpLua {
     private void LoadNamespace(XmlMetaModel.NamespaceModel model) {
       string namespaceName = model.name;
       if (namespaceName == null) {
-        throw new ArgumentException("namespace's name is null");
+        throw new ArgumentException("namespace.name is null");
       }
 
       if (namespaceName.Length > 0) {
@@ -464,13 +455,13 @@ namespace CSharpLua {
           throw new ArgumentException($"namespace [{namespaceName}] has a class's name is empty");
         }
 
-        string classesfullName = namespaceName.Length > 0 ? namespaceName + '.' + className : className;
-        classesfullName = classesfullName.Replace('`', '_');
-        if (typeMetas_.ContainsKey(classesfullName)) {
-          throw new ArgumentException($"type [{classesfullName}] is already has");
+        string classesFullName = namespaceName.Length > 0 ? namespaceName + '.' + className : className;
+        classesFullName = classesFullName.Replace('`', '_');
+        if (typeMetas_.ContainsKey(classesFullName)) {
+          throw new ArgumentException($"type [{classesFullName}] is already has");
         }
         TypeMetaInfo info = new TypeMetaInfo(classModel);
-        typeMetas_.Add(classesfullName, info);
+        typeMetas_.Add(classesFullName, info);
       }
     }
 
@@ -518,9 +509,7 @@ namespace CSharpLua {
 
     private TypeMetaInfo GetTypeMetaInfo(ISymbol symbol, string shortName) {
       var info = typeMetas_.GetOrDefault(shortName);
-      if (info != null) {
-        info.Model.CheckBaned(symbol);
-      }
+      info?.Model.CheckBaned(symbol);
       return info;
     }
 
@@ -559,7 +548,7 @@ namespace CSharpLua {
       return GetPropertyMetaInfo(symbol)?.CheckIsField;
     }
 
-    public string GetProertyCodeTemplate(IPropertySymbol symbol, bool isGet) {
+    public string GetPropertyCodeTemplate(IPropertySymbol symbol, bool isGet) {
       var info = GetPropertyMetaInfo(symbol);
       if (info != null) {
         info.CheckBaned(symbol);
